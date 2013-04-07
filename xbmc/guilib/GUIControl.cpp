@@ -31,7 +31,9 @@
 using namespace std;
 
 CGUIControl::CGUIControl() :
-  m_diffuseColor(0xffffffff)
+  m_diffuseColor(0xffffffff),
+  m_enabledDiffuseColor(0xffffffff),
+  m_disabledDiffuseColor(0x60ffffff)
 {
   m_hasProcessed = false;
   m_bHasFocus = false;
@@ -59,7 +61,9 @@ CGUIControl::CGUIControl() :
 
 CGUIControl::CGUIControl(int parentID, int controlID, float posX, float posY, float width, float height)
 : m_hitRect(posX, posY, posX + width, posY + height),
-  m_diffuseColor(0xffffffff)
+  m_diffuseColor(0xffffffff),
+  m_enabledDiffuseColor(0xffffffff),
+  m_disabledDiffuseColor(0x60ffffff)
 {
   m_posX = posX;
   m_posY = posY;
@@ -426,6 +430,16 @@ bool CGUIControl::SetColorDiffuse(const CGUIInfoColor &color)
   bool changed = m_diffuseColor != color;
   m_diffuseColor = color;
   return changed;
+}
+
+void CGUIControl::SetEnabledColorDiffuse(const CGUIInfoColor &color)
+{
+  m_enabledDiffuseColor = color;
+}
+
+void CGUIControl::SetDisabledColorDiffuse(const CGUIInfoColor &color)
+{
+  m_disabledDiffuseColor = color;
 }
 
 float CGUIControl::GetXPosition() const

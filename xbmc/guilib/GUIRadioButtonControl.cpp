@@ -197,11 +197,12 @@ CStdString CGUIRadioButtonControl::GetDescription() const
 
 bool CGUIRadioButtonControl::UpdateColors()
 {
+  CGUIInfoColor color = m_enabled ? m_enabledDiffuseColor : m_disabledDiffuseColor;
   bool changed = CGUIButtonControl::UpdateColors();
-  changed |= m_imgRadioOnFocus.SetDiffuseColor(m_diffuseColor);
-  changed |= m_imgRadioOnNoFocus.SetDiffuseColor(m_diffuseColor);
-  changed |= m_imgRadioOffFocus.SetDiffuseColor(m_diffuseColor);
-  changed |= m_imgRadioOffNoFocus.SetDiffuseColor(m_diffuseColor);
+  changed |= m_imgRadioOnFocus.SetDiffuseColor(color);
+  changed |= m_imgRadioOnNoFocus.SetDiffuseColor(color);
+  changed |= m_imgRadioOffFocus.SetDiffuseColor(color);
+  changed |= m_imgRadioOffNoFocus.SetDiffuseColor(color);
   return changed;
 }
 

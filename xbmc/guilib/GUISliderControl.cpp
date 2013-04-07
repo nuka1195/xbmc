@@ -620,12 +620,13 @@ CStdString CGUISliderControl::GetDescription() const
 
 bool CGUISliderControl::UpdateColors()
 {
+  CGUIInfoColor color = m_enabled ? m_enabledDiffuseColor : m_disabledDiffuseColor;
   bool changed = CGUIControl::UpdateColors();
-  changed |= m_guiBackground.SetDiffuseColor(m_diffuseColor);
-  changed |= m_guiSelectorLower.SetDiffuseColor(m_diffuseColor);
-  changed |= m_guiSelectorUpper.SetDiffuseColor(m_diffuseColor);
-  changed |= m_guiSelectorLowerFocus.SetDiffuseColor(m_diffuseColor);
-  changed |= m_guiSelectorUpperFocus.SetDiffuseColor(m_diffuseColor);
+  changed |= m_guiBackground.SetDiffuseColor(color);
+  changed |= m_guiSelectorLower.SetDiffuseColor(color);
+  changed |= m_guiSelectorUpper.SetDiffuseColor(color);
+  changed |= m_guiSelectorLowerFocus.SetDiffuseColor(color);
+  changed |= m_guiSelectorUpperFocus.SetDiffuseColor(color);
 
   return changed;
 }
