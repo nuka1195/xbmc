@@ -843,6 +843,8 @@ int CGUIInfoManager::TranslateSingleString(const CStdString &strCondition)
       }
       return AddMultiInfo(GUIInfo(STRING_STR, info, compareString));
     }
+    else if (cat.name == "istrue" && cat.num_params() == 1)
+      return AddMultiInfo(GUIInfo(VALUE_IS_TRUE, TranslateSingleString(cat.param())));
   }
   else if (info.size() == 2)
   {
@@ -3041,6 +3043,19 @@ bool CGUIInfoManager::GetMultiInfoBool(const GUIInfo &info, int contextWindow, c
           int playlistid = info.GetData1();
           if (playlistid > PLAYLIST_NONE)
             bReturn = g_playlistPlayer.GetRepeat(playlistid) == PLAYLIST::REPEAT_ONE;
+        }
+        break;
+
+      case VALUE_IS_TRUE:
+        {
+          // note: Get*Image() falls back to Get*Label(), so this should cover all of them
+          CStdString value;
+          if (item && item->IsFileItem() && info.GetData1() >= LISTITEM_START && info.GetData1() < LISTITEM_END)
+            value = GetItemImage((const CFileItem *)item, info.GetData1());
+          else
+            value = GetImage(info.GetData1(), contextWindow);
+
+          bReturn = (value.Equals("true") || value.Equals("yes") || value.Equals("on"));
         }
         break;
     }
