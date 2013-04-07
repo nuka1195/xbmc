@@ -27,6 +27,7 @@
 #include "dialogs/GUIDialogOK.h"
 #include "guilib/GUIControlGroupList.h"
 #include "guilib/GUISettingsSliderControl.h"
+#include "guilib/GUIEditControl.h"
 #include "utils/URIUtils.h"
 #include "utils/StringUtils.h"
 #include "storage/MediaManager.h"
@@ -51,6 +52,7 @@
 #include "utils/log.h"
 #include "Util.h"
 #include "URL.h"
+#include "filesystem/SpecialProtocol.h"
 
 using namespace std;
 using namespace ADDON;
@@ -64,6 +66,8 @@ using XFILE::CDirectory;
 #define CONTROL_DEFAULT_LABEL_SEPARATOR 7
 #define CONTROL_DEFAULT_SLIDER          8
 #define CONTROL_SECTION_AREA            9
+#define CONTROL_DEFAULT_EDIT            14
+
 #define CONTROL_DEFAULT_SECTION_BUTTON  13
 
 #define ID_BUTTON_OK                    10
@@ -72,7 +76,7 @@ using XFILE::CDirectory;
 #define CONTROL_HEADING_LABEL           20
 
 #define CONTROL_START_SETTING           100
-#define CONTROL_START_SECTION           200
+#define CONTROL_START_SECTION           300
 
 CGUIDialogAddonSettings::CGUIDialogAddonSettings()
    : CGUIDialogBoxBase(WINDOW_DIALOG_ADDON_SETTINGS, "DialogAddonSettings.xml")
@@ -111,6 +115,9 @@ bool CGUIDialogAddonSettings::OnMessage(CGUIMessage& message)
           m_bConfirmed = true;
           SaveSettings();
         }
+        if (iControl == ID_BUTTON_OK && !m_closeAction.IsEmpty())
+          CApplicationMessenger::Get().ExecBuiltIn(m_closeAction);
+
         Close();
         return true;
       }
@@ -123,7 +130,6 @@ bool CGUIDialogAddonSettings::OnMessage(CGUIMessage& message)
       if (focusedControl >= CONTROL_START_SECTION && focusedControl < (int)(CONTROL_START_SECTION + m_totalSections) &&
           focusedControl - CONTROL_START_SECTION != (int)m_currentSection)
       { // changing section
-        UpdateFromControls();
         m_currentSection = focusedControl - CONTROL_START_SECTION;
         CreateControls();
       }
@@ -133,7 +139,8 @@ bool CGUIDialogAddonSettings::OnMessage(CGUIMessage& message)
     {
       CStdString      id = message.GetStringParam(0);
       CStdString value   = message.GetStringParam(1);
-      m_settings[id] = value;
+      m_settings[id] = CleanString(value);
+      SetProperty(id, m_settings[id]);
       if (GetFocusedControl())
       {
         int iControl = GetFocusedControl()->GetID();
@@ -157,14 +164,13 @@ bool CGUIDialogAddonSettings::OnAction(const CAction& action)
       int iControl = pControl->GetID();
       int controlId = CONTROL_START_SETTING;
       const TiXmlElement* setting = GetFirstSetting();
-      UpdateFromControls();
       while (setting)
       {
         if (controlId == iControl)
         {
           const char* id = setting->Attribute("id");
-          const char* value = setting->Attribute("default");
-          m_settings[id] = value;
+          m_settings[id] = CleanString(setting->Attribute("default"));
+          SetProperty(id, m_settings[id]);
           CreateControls();
           CGUIMessage msg(GUI_MSG_SETFOCUS,GetID(),iControl);
           OnMessage(msg);
@@ -182,6 +188,7 @@ void CGUIDialogAddonSettings::OnInitWindow()
 {
   m_currentSection = 0;
   m_totalSections = 1;
+  m_closeAction.Empty();
   CreateSections();
   CreateControls();
   CGUIDialogBoxBase::OnInitWindow();
@@ -231,15 +238,15 @@ bool CGUIDialogAddonSettings::ShowVirtualKeyboard(int iControl)
   {
     if (controlId == iControl)
     {
+      const char *id = setting->Attribute("id");
+      const char *type = setting->Attribute("type");
+      CStdString value = m_settings[id];
       const CGUIControl* control = GetControl(controlId);
       if (control->GetControlType() == CGUIControl::GUICONTROL_BUTTON)
       {
-        const char *id = setting->Attribute("id");
-        const char *type = setting->Attribute("type");
         const char *option = setting->Attribute("option");
         const char *source = setting->Attribute("source");
-        CStdString value = m_buttonValues[id];
-        CStdString label = GetString(setting->Attribute("label"));
+        CStdString label = GetString(CleanString(setting->Attribute("label")));
 
         if (strcmp(type, "text") == 0)
         {
@@ -296,16 +303,11 @@ bool CGUIDialogAddonSettings::ShowVirtualKeyboard(int iControl)
               {
                 if (i == (unsigned int)atoi(value))
                   selected = i;
-                CStdString localized = m_addon->GetString(atoi(valuesVec[i].c_str()));
-                if (localized.IsEmpty())
-                  localized = g_localizeStrings.Get(atoi(valuesVec[i].c_str()));
-                valuesVec[i] = localized;
+                valuesVec[i] = GetString(valuesVec[i]);
               }
             }
             else if (source)
-            {
               valuesVec = GetFileEnumValues(source, setting->Attribute("mask"), setting->Attribute("option"));
-            }
 
             for (unsigned int i = 0; i < valuesVec.size(); i++)
             {
@@ -411,12 +413,9 @@ bool CGUIDialogAddonSettings::ShowVirtualKeyboard(int iControl)
         }
         else if (strcmpi(type, "action") == 0)
         {
-          CStdString action = setting->Attribute("action");
+          CStdString action = CleanString(setting->Attribute("action"));
           if (!action.IsEmpty())
           {
-            // replace $CWD with the url of plugin/script
-            action.Replace("$CWD", m_addon->Path());
-            action.Replace("$ID", m_addon->ID());
             if (option)
               bCloseDialog = (strcmpi(option, "close") == 0);
             CApplicationMessenger::Get().ExecBuiltIn(action);
@@ -486,9 +485,36 @@ bool CGUIDialogAddonSettings::ShowVirtualKeyboard(int iControl)
             }
           }
         }
-        m_buttonValues[id] = value;
-        break;
       }
+      else if (control->GetControlType() == CGUIControl::GUICONTROL_RADIO)
+      {
+        value = ((CGUIRadioButtonControl*) control)->IsSelected() ? "true" : "false";
+    }
+      else if (control->GetControlType() == CGUIControl::GUICONTROL_SPINEX)
+  {
+          if (strcmpi(type, "fileenum") == 0 || strcmpi(type, "labelenum") == 0)
+            value = ((CGUISpinControlEx*) control)->GetLabel();
+          else
+            value.Format("%i", ((CGUISpinControlEx*) control)->GetValue());
+      }
+      else if (control->GetControlType() == CGUIControl::GUICONTROL_SETTINGS_SLIDER)
+      {
+        SetSliderTextValue(control, setting->Attribute("format"));
+          {
+            CStdString option = setting->Attribute("option");
+            if (option.size() == 0 || option.CompareNoCase("float") == 0)
+              value.Format("%f", ((CGUISettingsSliderControl *)control)->GetFloatValue());
+            else
+              value.Format("%i", ((CGUISettingsSliderControl *)control)->GetIntValue());
+          }
+      }
+      else if (control->GetControlType() == CGUIControl::GUICONTROL_EDIT)
+      {
+        value = ((CGUIEditControl*) control)->GetLabel2();
+      }
+      m_settings[id] = value;
+      SetProperty(id, m_settings[id]);
+      break;
     }
     setting = setting->NextSiblingElement("setting");
     controlId++;
@@ -497,63 +523,13 @@ bool CGUIDialogAddonSettings::ShowVirtualKeyboard(int iControl)
   return bCloseDialog;
 }
 
-void CGUIDialogAddonSettings::UpdateFromControls()
-{
-  int controlID = CONTROL_START_SETTING;
-  const TiXmlElement *setting = GetFirstSetting();
-  while (setting)
-  {
-    CStdString id = setting->Attribute("id");
-    const char *type = setting->Attribute("type");
-    const CGUIControl* control = GetControl(controlID++);
-
-    if (control)
-    {
-      CStdString value;
-      switch (control->GetControlType())
-      {
-        case CGUIControl::GUICONTROL_BUTTON:
-          value = m_buttonValues[id];
-          break;
-        case CGUIControl::GUICONTROL_RADIO:
-          value = ((CGUIRadioButtonControl*) control)->IsSelected() ? "true" : "false";
-          break;
-        case CGUIControl::GUICONTROL_SPINEX:
-          if (strcmpi(type, "fileenum") == 0 || strcmpi(type, "labelenum") == 0)
-            value = ((CGUISpinControlEx*) control)->GetLabel();
-          else
-            value.Format("%i", ((CGUISpinControlEx*) control)->GetValue());
-          break;
-        case CGUIControl::GUICONTROL_SETTINGS_SLIDER:
-          {
-            CStdString option = setting->Attribute("option");
-            if (option.size() == 0 || option.CompareNoCase("float") == 0)
-              value.Format("%f", ((CGUISettingsSliderControl *)control)->GetFloatValue());
-            else
-              value.Format("%i", ((CGUISettingsSliderControl *)control)->GetIntValue());
-          }
-          break;
-        default:
-          break;
-      }
-      m_settings[id] = value;
-    }
-
-    setting = setting->NextSiblingElement("setting");
-  }
-}
-
 void CGUIDialogAddonSettings::SaveSettings(void)
 {
-  UpdateFromControls();
-
   for (map<CStdString, CStdString>::iterator i = m_settings.begin(); i != m_settings.end(); ++i)
     m_addon->UpdateSetting(i->first, i->second);
 
   if (m_saveToDisk)
-  { 
     m_addon->SaveSettings();
-  } 
 }
 
 void CGUIDialogAddonSettings::FreeSections()
@@ -565,7 +541,6 @@ void CGUIDialogAddonSettings::FreeSections()
     group->ClearAll();
   }
   m_settings.clear();
-  m_buttonValues.clear();
   FreeControls();
 }
 
@@ -582,13 +557,17 @@ void CGUIDialogAddonSettings::FreeControls()
 
 void CGUIDialogAddonSettings::CreateSections()
 {
-  CGUIControlGroupList *group = (CGUIControlGroupList *)GetControl(CONTROL_SECTION_AREA);
-  CGUIButtonControl *originalButton = (CGUIButtonControl *)GetControl(CONTROL_DEFAULT_SECTION_BUTTON);
   if (!m_addon)
     return;
 
+  CGUIControlGroupList *group = (CGUIControlGroupList *)GetControl(CONTROL_SECTION_AREA);
+  CGUIButtonControl *originalButton = (CGUIButtonControl *)GetControl(CONTROL_DEFAULT_SECTION_BUTTON);
   if (originalButton)
     originalButton->SetVisible(false);
+
+  // grab any onclose action
+  const TiXmlElement *settings = m_addon->GetSettingsXML();
+  m_closeAction = CleanString(settings->Attribute("onclose"));
 
   // clear the category group
   FreeSections();
@@ -603,7 +582,7 @@ void CGUIDialogAddonSettings::CreateSections()
   { // add a category
     CGUIButtonControl *button = originalButton ? originalButton->Clone() : NULL;
 
-    CStdString label = GetString(category->Attribute("label"));
+    CStdString label = GetString(CleanString(category->Attribute("label")));
     if (label.IsEmpty())
       label = g_localizeStrings.Get(128);
 
@@ -613,6 +592,8 @@ void CGUIDialogAddonSettings::CreateSections()
       button->SetID(buttonID++);
       button->SetLabel(label);
       button->SetVisible(true);
+      button->SetEnableCondition(GetCondition(category->Attribute("enable")));
+      button->SetVisibleCondition(GetCondition(category->Attribute("visible")));
       group->AddControl(button);
     }
 
@@ -622,7 +603,10 @@ void CGUIDialogAddonSettings::CreateSections()
     {
       const char *id = setting->Attribute("id");
       if (id)
-        m_settings[id] = m_addon->GetSetting(id);
+      {
+        m_settings[id] = CleanString(m_addon->GetSetting(id));
+        SetProperty(id, m_settings[id]);
+      }
       setting = setting->NextSiblingElement("setting");
     }
     category = category->NextSiblingElement("category");
@@ -640,9 +624,10 @@ void CGUIDialogAddonSettings::CreateControls()
   CGUIImage *pOriginalImage = (CGUIImage *)GetControl(CONTROL_DEFAULT_SEPARATOR);
   CGUILabelControl *pOriginalLabel = (CGUILabelControl *)GetControl(CONTROL_DEFAULT_LABEL_SEPARATOR);
   CGUISettingsSliderControl *pOriginalSlider = (CGUISettingsSliderControl *)GetControl(CONTROL_DEFAULT_SLIDER);
+  CGUIEditControl *pOriginalEdit = (CGUIEditControl *)GetControl(CONTROL_DEFAULT_EDIT);
 
   if (!m_addon || !pOriginalSpin || !pOriginalRadioButton || !pOriginalButton || !pOriginalImage
-               || !pOriginalLabel || !pOriginalSlider)
+               || !pOriginalLabel || !pOriginalSlider || !pOriginalEdit)
     return;
 
   pOriginalSpin->SetVisible(false);
@@ -651,6 +636,7 @@ void CGUIDialogAddonSettings::CreateControls()
   pOriginalImage->SetVisible(false);
   pOriginalLabel->SetVisible(false);
   pOriginalSlider->SetVisible(false);
+  pOriginalEdit->SetVisible(false);
 
   // clear the category group
   CGUIControlGroupList *group = (CGUIControlGroupList *)GetControl(CONTROL_SETTINGS_AREA);
@@ -667,20 +653,13 @@ void CGUIDialogAddonSettings::CreateControls()
   {
     const char *type = setting->Attribute("type");
     const char *id = setting->Attribute("id");
-    CStdString values;
-    if (setting->Attribute("values"))
-      values = setting->Attribute("values");
-    CStdString lvalues;
-    if (setting->Attribute("lvalues"))
-      lvalues = setting->Attribute("lvalues");
-    CStdString entries;
-    if (setting->Attribute("entries"))
-      entries = setting->Attribute("entries");
-    CStdString defaultValue;
-    if (setting->Attribute("default"))
-      defaultValue= setting->Attribute("default");
+    CStdString values = setting->Attribute("values");
+    CStdString lvalues = setting->Attribute("lvalues");
+    CStdString entries = setting->Attribute("entries");
+    CStdString defaultValue = CleanString(setting->Attribute("default"));
     const char *subsetting = setting->Attribute("subsetting");
-    CStdString label = GetString(setting->Attribute("label"), subsetting && 0 == strcmpi(subsetting, "true"));
+    CStdString label = GetString(CleanString(setting->Attribute("label")), subsetting && 0 == strcmpi(subsetting, "true"));
+    CStdString option = setting->Attribute("option");
 
     bool bSort=false;
     const char *sort = setting->Attribute("sort");
@@ -704,12 +683,14 @@ void CGUIDialogAddonSettings::CreateControls()
         if (id)
         {
           CStdString value = m_settings[id];
-          m_buttonValues[id] = value;
-          // get any option to test for hidden
-          const char *option = setting->Attribute("option");
-          if (option && (strstr(option, "urlencoded")))
+          // test for hidden or urlencoded
+          if (option.CompareNoCase("urlencoded") == 0 || option.CompareNoCase("urlencoded|hidden") == 0 ||
+              option.CompareNoCase("hidden|urlencoded") == 0)
+          {
             CURL::Decode(value);
-          if (option && (strstr(option, "hidden")))
+          }
+          if (option.CompareNoCase("hidden") == 0 || option.CompareNoCase("urlencoded|hidden") == 0 ||
+              option.CompareNoCase("hidden|urlencoded") == 0)
           {
             CStdString hiddenText;
             hiddenText.append(value.size(), L'*');
@@ -778,12 +759,7 @@ void CGUIDialogAddonSettings::CreateControls()
           if (entryVec.size() > i)
             iAdd = atoi(entryVec[i].c_str());
           if (!lvalues.IsEmpty())
-          {
-            CStdString replace = m_addon->GetString(atoi(valuesVec[i].c_str()));
-            if (replace.IsEmpty())
-              replace = g_localizeStrings.Get(atoi(valuesVec[i].c_str()));
-            ((CGUISpinControlEx *)pControl)->AddLabel(replace, iAdd);
-          }
+            ((CGUISpinControlEx *)pControl)->AddLabel(GetString(valuesVec[i]), iAdd);
           else
             ((CGUISpinControlEx *)pControl)->AddLabel(valuesVec[i], iAdd);
         }
@@ -802,7 +778,7 @@ void CGUIDialogAddonSettings::CreateControls()
         ((CGUISpinControlEx *)pControl)->SetText(label);
         ((CGUISpinControlEx *)pControl)->SetFloatValue(1.0f);
 
-        vector<std::string> items = GetFileEnumValues(values, setting->Attribute("mask"), setting->Attribute("option"));
+        vector<CStdString> items = GetFileEnumValues(values, setting->Attribute("mask"), option);
         for (unsigned int i = 0; i < items.size(); ++i)
         {
           ((CGUISpinControlEx *)pControl)->AddLabel(items[i], i);
@@ -832,7 +808,7 @@ void CGUIDialogAddonSettings::CreateControls()
           elements = atoi(setting->Attribute("elements"));
         CStdString valueformat;
         if (setting->Attribute("valueformat"))
-          valueformat = m_addon->GetString(atoi(setting->Attribute("valueformat")));
+          valueformat = GetString(setting->Attribute("valueformat"));
         for (int i = 0; i < elements; i++)
         {
           CStdString valuestring;
@@ -844,8 +820,8 @@ void CGUIDialogAddonSettings::CreateControls()
         }
         ((CGUISpinControlEx *)pControl)->SetValue(atoi(m_settings[id]));
       }
-      // Sample: <setting id="mysettingname" type="slider" label="30000" range="5,5,60" option="int" default="5"/>
-      // to make ints from 5-60 with 5 steps
+      // Sample: <setting id="mysettingname" type="slider" label="30000" range="5,5,60" format="%1f. msec,min,max" option="int" default="5"/>
+      // to make ints from 5-60 with 5 steps formatted as min when==5, max when==60 or 25 msec
       else if (strcmpi(type, "slider") == 0)
       {
         pControl = new CGUISettingsSliderControl(*pOriginalSlider);
@@ -869,10 +845,9 @@ void CGUIDialogAddonSettings::CreateControls()
             fMax = (float)atof(range[1]);
         }
 
-        CStdString option = setting->Attribute("option");
         int iType=0;
 
-        if (option.size() == 0 || option.CompareNoCase("float") == 0)
+        if (option.IsEmpty() || option.CompareNoCase("float") == 0)
           iType = SPIN_CONTROL_TYPE_FLOAT;
         else if (option.CompareNoCase("int") == 0)
           iType = SPIN_CONTROL_TYPE_INT;
@@ -883,15 +858,27 @@ void CGUIDialogAddonSettings::CreateControls()
         ((CGUISettingsSliderControl *)pControl)->SetFloatRange(fMin, fMax);
         ((CGUISettingsSliderControl *)pControl)->SetFloatInterval(fInc);
         ((CGUISettingsSliderControl *)pControl)->SetFloatValue((float)atof(m_settings[id]));
+      
+        SetSliderTextValue(pControl, setting->Attribute("format"));
       }
       else if (strcmpi(type, "lsep") == 0)
       {
         pControl = new CGUILabelControl(*pOriginalLabel);
-        if (pControl)
+        if (!pControl) return;
           ((CGUILabelControl *)pControl)->SetLabel(label);
       }
       else if (strcmpi(type, "sep") == 0)
+      {
         pControl = new CGUIImage(*pOriginalImage);
+        if (!pControl) return;
+    }
+      else if (strcmpi(type, "edit") == 0)
+      {
+        pControl = new CGUIEditControl(*pOriginalEdit);
+        if (!pControl) return;
+        ((CGUIEditControl *)pControl)->SetLabel(label);
+        ((CGUIEditControl *)pControl)->SetLabel2(m_settings[id]);
+      }
     }
 
     if (pControl)
@@ -936,14 +923,18 @@ CStdString CGUIDialogAddonSettings::GetAddonNames(const CStdString& addonIDslist
 vector<std::string> CGUIDialogAddonSettings::GetFileEnumValues(const CStdString &path, const CStdString &mask, const CStdString &options) const
 {
   // Create our base path, used for type "fileenum" settings
-  // replace $PROFILE with the profile path of the plugin/script
-  CStdString fullPath = path;
-  if (fullPath.Find("$PROFILE") >= 0)
-    fullPath.Replace("$PROFILE", m_addon->Profile());
+  CStdString fullPath;
+  // replace $CWD with the path and $PROFILE with the profile path of the addon
+  if (path.Find("$CWD") >= 0 || path.Find("$PROFILE") >= 0)
+    fullPath = TranslateTokens(path);
   else
-    fullPath = URIUtils::AddFileToFolder(m_addon->Path(), path);
+    fullPath = CUtil::ValidatePath(URIUtils::AddFileToFolder(m_addon->Path(), TranslateTokens(path)));
 
-  bool hideExtensions = (options.CompareNoCase("hideext") == 0);
+  bool hideExtensions = (options.CompareNoCase("hideext") == 0 || options.CompareNoCase("hideext|empty") == 0 ||
+                          options.CompareNoCase("empty|hideext") == 0);
+  bool addEmpty = (options.CompareNoCase("empty") == 0 || options.CompareNoCase("hideext|empty") == 0 ||
+                    options.CompareNoCase("empty|hideext") == 0);
+
   // fetch directory
   CFileItemList items;
   if (!mask.IsEmpty())
@@ -951,7 +942,10 @@ vector<std::string> CGUIDialogAddonSettings::GetFileEnumValues(const CStdString 
   else
     CDirectory::GetDirectory(fullPath, items, "", XFILE::DIR_FLAG_NO_FILE_DIRS);
 
-  vector<std::string> values;
+  vector<CStdString> values;
+  if (addEmpty)
+      values.push_back("");
+
   for (int i = 0; i < items.Size(); ++i)
   {
     CFileItemPtr pItem = items[i];
@@ -975,30 +969,34 @@ void CGUIDialogAddonSettings::EnableControls()
     const CGUIControl* control = GetControl(controlId);
     if (control)
     {
-      // set enable status
-      if (setting->Attribute("enable"))
-        ((CGUIControl*) control)->SetEnabled(GetCondition(setting->Attribute("enable"), controlId));
+      // set enable condition
+      CStdString condition = GetCondition(setting->Attribute("enable"));
+      if (condition.Find("eq(") == -1 && condition.Find("gt(") == -1 && condition.Find("lt(") == -1)
+        ((CGUIControl*) control)->SetEnableCondition(condition);
       else
-        ((CGUIControl*) control)->SetEnabled(true);
-      // set visible status
-      if (setting->Attribute("visible"))
-        ((CGUIControl*) control)->SetVisible(GetCondition(setting->Attribute("visible"), controlId));
+        ((CGUIControl*) control)->SetEnabled(GetBoolCondition(condition, controlId));
+      // set visible condition
+      condition = GetCondition(setting->Attribute("visible"));
+      if (condition.Find("eq(") == -1 && condition.Find("gt(") == -1 && condition.Find("lt(") == -1)
+      {
+        CStdString allowHiddenFocus = GetCondition(setting->Attribute("allowHiddenFocus"), true);
+        ((CGUIControl*) control)->SetVisibleCondition(condition, allowHiddenFocus);
+      }
       else
-        ((CGUIControl*) control)->SetVisible(true);
+        ((CGUIControl*) control)->SetVisible(GetBoolCondition(condition, controlId));
     }
     setting = setting->NextSiblingElement("setting");
     controlId++;
   }
 }
 
-bool CGUIDialogAddonSettings::GetCondition(const CStdString &condition, const int controlId)
+bool CGUIDialogAddonSettings::GetBoolCondition(const CStdString &condition, const int controlId)
 {
   if (condition.IsEmpty()) return true;
 
   bool bCondition = true;
   bool bCompare = true;
-  bool bControlDependend = false;//flag if the condition depends on another control
-  vector<std::string> conditionVec;
+  vector<CStdString> conditionVec;
 
   if (condition.Find("+") >= 0)
     StringUtils::Tokenize(condition, conditionVec, "+");
@@ -1018,8 +1016,6 @@ bool CGUIDialogAddonSettings::GetCondition(const CStdString &condition, const in
     if (!control2)
       continue;
       
-    bControlDependend = true; //once we are here - this condition depends on another control
-
     CStdString value;
     switch (control2->GetControlType())
     {
@@ -1034,6 +1030,12 @@ bool CGUIDialogAddonSettings::GetCondition(const CStdString &condition, const in
           value = ((CGUISpinControlEx*) control2)->GetLabel();
         else
           value.Format("%i", ((CGUISpinControlEx*) control2)->GetValue());
+        break;
+      case CGUIControl::GUICONTROL_SETTINGS_SLIDER:
+        value.Format("%f", (float)((CGUISettingsSliderControl *)control2)->GetFloatValue());
+        break;
+      case CGUIControl::GUICONTROL_EDIT:
+        value = ((CGUIEditControl*) control2)->GetLabel2();
         break;
       default:
         break;
@@ -1068,12 +1070,7 @@ bool CGUIDialogAddonSettings::GetCondition(const CStdString &condition, const in
         bCondition |= (atoi(value) < atoi(condVec[2]));
     }
   }
-  
-  if (!bControlDependend)//if condition doesn't depend on another control - try if its an infobool expression
-  {
-    bCondition = g_infoManager.EvaluateBool(condition);
-  }
-  
+
   return bCondition;
 }
 
@@ -1102,9 +1099,18 @@ CStdString CGUIDialogAddonSettings::GetString(const char *value, bool subSetting
   if (!value)
     return "";
   CStdString prefix(subSetting ? "- " : "");
+  CStdString strValue = value;
+
   if (StringUtils::IsNaturalNumber(value))
-    return prefix + m_addon->GetString(atoi(value));
-  return prefix + value;
+  {
+    // first we try the addon's strings, then we try XBMC strings.
+    if (!m_addon->GetString(atoi(value)).IsEmpty())
+      strValue = m_addon->GetString(atoi(value));
+    else if (!g_localizeStrings.Get(atoi(value)).IsEmpty())
+      strValue = g_localizeStrings.Get(atoi(value));
+  }
+
+  return prefix + strValue;
 }
 
 // Go over all the settings and set their default values
@@ -1123,18 +1129,21 @@ void CGUIDialogAddonSettings::SetDefaultSettings()
     while (setting)
     {
       const char *id = setting->Attribute("id");
-      const char *type = setting->Attribute("type");
-      const char *value = setting->Attribute("default");
       if (id)
       {
-        if (value)
+        const char *type = setting->Attribute("type");
+        CStdString value = CleanString(setting->Attribute("default"));
+
+        if (!value.IsEmpty())
           m_settings[id] = value;
         else if (type && 0 == strcmpi(type, "bool"))
           m_settings[id] = "false";
         else if (type && (0 == strcmpi(type, "slider") || 0 == strcmpi(type, "enum")))
           m_settings[id] = "0";
-        else
+        else if (type && 0 != strcmpi(type, "action"))
           m_settings[id] = "";
+
+        SetProperty(id, m_settings[id]);
       }
       setting = setting->NextSiblingElement("setting");
     }
@@ -1203,4 +1212,61 @@ int CGUIDialogAddonSettings::GetDefaultLabelID(int controlId) const
     return 409;
 
   return CGUIDialogBoxBase::GetDefaultLabelID(controlId);
+}
+
+CStdString CGUIDialogAddonSettings::CleanString(const char *value) const
+{
+  // localize values
+  CStdString strValue = CGUIInfoLabel::ReplaceLocalize(TranslateTokens(value));
+  strValue = CGUIInfoLabel::ReplaceAddonStrings(strValue);
+  // replace "Addon.Setting(" with "Window.Property" as a convenience for saner skinning.
+  strValue.Replace("Addon.Setting(", "Window.Property(");
+
+  return strValue;
+}
+
+CStdString CGUIDialogAddonSettings::TranslateTokens(const char *value) const
+{
+  CStdString strValue = value;
+  // replace $AUTHOR with the addon's author
+  strValue.Replace("$AUTHOR", m_addon->Author());
+  // replace $CWD with the addon's path
+  strValue.Replace("$CWD", m_addon->Path());
+  // replace $ID with the addon's id
+  strValue.Replace("$ID", m_addon->ID());
+  // replace $PROFILE with the profile path of the addon
+  strValue.Replace("$PROFILE", CSpecialProtocol::TranslatePath(m_addon->Profile()));
+  // replace $VERSION with the addon's version
+  strValue.Replace("$VERSION", m_addon->Version().c_str());
+
+  return CUtil::ValidatePath(strValue, true);
+}
+
+void CGUIDialogAddonSettings::SetSliderTextValue(const CGUIControl *control, const char *format)
+{
+  if (!format)
+    return;
+
+  CStdString strValue;
+  vector<CStdString> formats;
+  StringUtils::SplitString(format, ",", formats);
+
+  if (formats.size() == 3 && !formats[2].IsEmpty() && ((CGUISettingsSliderControl *)control)->GetProportion() == 1.0f)
+    strValue.Format(GetString(CleanString(formats[2])).c_str(), ((CGUISettingsSliderControl *)control)->GetFloatValue());
+  else if (formats.size() >= 2 && !formats[1].IsEmpty() && ((CGUISettingsSliderControl *)control)->GetProportion() == 0.0f)
+    strValue.Format(GetString(CleanString(formats[1])).c_str(), ((CGUISettingsSliderControl *)control)->GetFloatValue());
+  else
+    strValue.Format(GetString(CleanString(formats[0])).c_str(), ((CGUISettingsSliderControl *)control)->GetFloatValue());
+
+  ((CGUISettingsSliderControl *)control)->SetTextValue(strValue);
+}
+
+CStdString CGUIDialogAddonSettings::GetCondition(const char *condition, bool allowHiddenFocus /* = false */) const
+{
+  if (!condition && allowHiddenFocus)
+    return "false";
+  else if (!condition)
+    return "true";
+
+  return CleanString(condition);
 }
