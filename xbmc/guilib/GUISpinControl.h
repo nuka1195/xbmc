@@ -69,6 +69,8 @@ public:
   void SetFloatValue(float fValue);
   void SetStringValue(const std::string& strValue);
   int GetValue() const;
+  int GetType() const { return m_iType; };
+  const CLabelInfo& GetLabelInfo() const { return m_label.GetLabelInfo(); };
   float GetFloatValue() const;
   std::string GetStringValue() const;
   void AddLabel(const std::string& strLabel, int iValue);

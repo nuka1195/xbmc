@@ -34,6 +34,7 @@
 #include "guilib/GUIListContainer.h"
 #include "guilib/GUIProgressControl.h"
 #include "guilib/GUISliderControl.h"
+#include "guilib/GUISpinControlEx.h"
 #include "guilib/GUIRadioButtonControl.h"
 #include "GUIInfoManager.h"
 #include "guilib/GUIWindowManager.h"
@@ -1392,6 +1393,128 @@ namespace XBMCAddon
 
       // set static list
       ((CGUIBaseContainer *)pGUIControl)->SetStaticContent(items);
+    }
+
+    // ============================================================
+
+    // ============================================================
+    // ============================================================
+    ControlSpinEx::ControlSpinEx(long x, long y, long width, long height, const String& label,
+                    const char* font, const char* _textColor, const char* _disabledColor,
+                    const char* _shadowColor, const char* _focusedColor, long _alignment,
+                    long _iType) :
+      Control("ControlSpinEx"),
+      strFont("font13"),
+      textColor(0xffffffff),
+      disabledColor(0x60ffffff),
+      shadowColor(0),
+      focusedColor(0xffffffff),
+      iType(SPIN_CONTROL_TYPE_INT)
+    {
+      dwPosX = x;
+      dwPosY = y;
+      dwWidth = width;
+      dwHeight = height;
+      strText = label;
+      align = _alignment;
+      if (_iType >= SPIN_CONTROL_TYPE_INT && _iType <= SPIN_CONTROL_TYPE_TEXT) iType = _iType;
+      // if textures are supplied use them, else get default ones
+      if (font) strFont = font;
+      if (_textColor) sscanf( _textColor, "%x", &textColor );
+      if (_disabledColor) sscanf( _disabledColor, "%x", &disabledColor );
+      if (_shadowColor) sscanf( _shadowColor, "%x", &shadowColor );
+      if (_focusedColor) sscanf( _focusedColor, "%x", &focusedColor );
+    }
+
+    // setType() Method
+    void ControlSpinEx::setType(int type) throw (UnimplementedException)
+    {
+      if (pGUIControl && (type >= SPIN_CONTROL_TYPE_INT && type <= SPIN_CONTROL_TYPE_PAGE))
+      {
+        LOCKGUI;
+        ((CGUISpinControlEx *)pGUIControl)->SetType(type);
+      }
+    }
+
+    // getType() Method
+    int ControlSpinEx::getType() throw (UnimplementedException)
+    {
+      if (!pGUIControl) return NULL;
+
+      LOCKGUI;
+      return ((CGUISpinControlEx*) pGUIControl)->GetType();
+    }
+
+    // setValue() Method
+    void ControlSpinEx::setValue(const String& value) throw (UnimplementedException)
+    {
+      const String& strValue = value;
+
+      if (pGUIControl)
+      {
+        LOCKGUI;
+        ((CGUISpinControlEx*)pGUIControl)->SetValueFromLabel(strValue);
+      }
+    }
+
+    // getValue() Method
+    String ControlSpinEx::getValue() throw (UnimplementedException)
+    {
+      if (!pGUIControl) return NULL;
+
+      LOCKGUI;
+      return ((CGUISpinControlEx*) pGUIControl)->GetCurrentLabel();
+    }
+
+    // addValues() Method
+    void ControlSpinEx::addValues(const std::vector<String>& values) throw (UnimplementedException)
+    {
+      const std::vector<String>& vecValues = values;
+
+      if (pGUIControl)
+      {
+        LOCKGUI;
+        ((CGUISpinControlEx *)pGUIControl)->Clear();
+        for (unsigned int item = 0; item < vecValues.size(); item++)
+        {
+          ((CGUISpinControlEx*)pGUIControl)->AddLabel(vecValues[item], item);
+        }
+      }
+    }
+
+    CGUIControl* ControlSpinEx::Create() throw (WindowException)
+    {
+      CLabelInfo label;
+      CLabelInfo label2;
+      label.font = g_fontManager.GetFont(strFont);
+      label.textColor = textColor;
+      label.disabledColor = disabledColor;
+      label.shadowColor = shadowColor;
+      label.focusedColor = focusedColor;
+      label.align = align;
+      label.offsetX = (float)textOffsetX;
+      label.offsetY = (float)textOffsetY;
+      label.angle = (float)-iAngle;
+      pGUIControl = new CGUISpinControlEx(
+        iParentId,
+        iControlId,
+        (float)dwPosX,
+        (float)dwPosY,
+        (float)dwWidth,
+        (float)dwHeight,
+        (float)spinWidth,
+        (float)spinHeight,
+        label,
+        (CStdString)strTextureFocus,
+        (CStdString)strTextureNoFocus,
+        (CStdString)strTextureUp,
+        (CStdString)strTextureDown,
+        (CStdString)strTextureUpFocus,
+        (CStdString)strTextureDownFocus,
+        label2,
+        iType);
+
+      return pGUIControl;
     }
 
     // ============================================================

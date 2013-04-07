@@ -359,6 +359,19 @@ namespace XBMCAddon
         if (li.font) ((ControlEdit*)pControl)->strFont = li.font->GetFontName();
         ((ControlButton*)pControl)->align = li.align;
         break;
+      case CGUIControl::GUICONTROL_SPINEX:
+        pControl = new ControlSpinEx();
+
+        li = ((CGUISpinControl *)pGUIControl)->GetLabelInfo();
+
+        // note: conversion from infocolors -> plain colors here
+        ((ControlSpinEx*)pControl)->disabledColor = li.disabledColor;
+        ((ControlSpinEx*)pControl)->focusedColor  = li.focusedColor;
+        ((ControlSpinEx*)pControl)->textColor  = li.textColor;
+        ((ControlSpinEx*)pControl)->shadowColor   = li.shadowColor;
+        if (li.font) ((ControlSpinEx*)pControl)->strFont = li.font->GetFontName();
+        ((ControlSpinEx*)pControl)->align = li.align;
+        break;
       default:
         break;
       }

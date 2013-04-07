@@ -22,6 +22,7 @@
 #pragma once
 
 #include "guilib/GUIControl.h"
+#include "guilib/GUISpinControl.h"
 #include "guilib/GUIFont.h"
 #include "guilib/Key.h"
 
@@ -29,8 +30,6 @@
 #include "ListItem.h"
 #include "swighelper.h"
 #include "WindowException.h"
-
-#include "ListItem.h"
 
 // hardcoded offsets for button controls (and controls that use button controls)
 // ideally they should be dynamically read in as with all the other properties.
@@ -133,6 +132,12 @@ namespace XBMCAddon
       virtual String getLabel2() DECL_UNIMP("Control");
       virtual long getItemHeight() DECL_UNIMP("Control");
       virtual void addLabel(const String& label) DECL_UNIMP("Control");
+      // spincontrolex methods
+      virtual void setType(int type) DECL_UNIMP("Control");
+      virtual int getType() DECL_UNIMP("Control");
+      virtual void setValue(const String& value) DECL_UNIMP("Control");
+      virtual String getValue() DECL_UNIMP("Control");
+      virtual void addValues(const std::vector<String>& values) DECL_UNIMP("Control");
 
       // These need to be here for the stubbed out addItem
       //   and addItems methods
@@ -1509,13 +1514,128 @@ namespace XBMCAddon
 #ifndef SWIG
       std::string strTextureBack;
       std::string strTexture;
-      std::string strTextureFoc;    
+      std::string strTextureFoc;
 
       SWIGHIDDENVIRTUAL CGUIControl* Create() throw (WindowException);
 
       ControlSlider() : Control("ControlSlider") {}
 #endif
     };
+
+    /**
+     * ControlSlider class.\n
+     *\n
+     * ControlSpinEx(x, y, width, height, label[, font, textColor, disabledColor, shadowColor, alignment, type]\n
+     *\n
+     * x             : integer - x coordinate of control.\n
+     * y             : integer - y coordinate of control.\n
+     * width         : integer - width of control.\n
+     * height        : integer - height of control.\n
+     * label         : string or unicode - text string.\n
+     * font          : [opt] string - font used for label text. (e.g. 'font13')\n
+     * textColor     : [opt] hexstring - color of enabled spin control's label. (e.g. '0xFFFFFFFF')\n
+     * disabledColor : [opt] hexstring - color of disabled spin control's label. (e.g. '0xFFFF3300')\n
+     * shadowColor   : [opt] hexstring - color of enabled spin control's shadow. (e.g. '0xFF000000')\n
+     * focusedColor  : [opt] hexstring - color of enabled spin control's label when focused. (e.g. '0xFF0000FF')\n
+     * alignment     : [opt] integer - alignment of label - *Note, see xbfont.h\n
+     * type          : [opt] integer - type of spinner. (e.g. xbmcgui.SPIN_CONTROL_TYPE_TEXT)\n
+     *\n
+     * example:\n
+     * - self.spincontrol = xbmcgui.ControlSpinEx(100, 250, 350, 40, "Scraper",type=xbmcgui.SPIN_CONTROL_TYPE_TEXT)\n
+     */
+    class ControlSpinEx : public Control
+    {
+    public:
+      ControlSpinEx(long x, long y, long width, long height, const String& label,
+                    const char* font = NULL, const char* _textColor = NULL,
+                    const char* _disabledColor = NULL, const char* _shadowColor = NULL,
+                    const char* _focusedColor = NULL, long _alignment = (XBFONT_LEFT | XBFONT_CENTER_Y),
+                    long _iType = -1);
+
+      // setType() method
+      /**
+       * setType(type) -- Sets the spinner control's type.\n
+       * \n
+       * type     : integer - spin control type\n
+       * \n"
+       * *Note, SPIN_CONTROL_TYPE_INT (default), SPIN_CONTROL_TYPE_FLOAT, SPIN_CONTROL_TYPE_TEXT, SPIN_CONTROL_TYPE_PAGE\n
+       * \n
+       * example:\n
+       * - self.spincontrol.setType(type=xbmcgui.SPIN_CONTROL_TYPE_TEXT)\n
+       */
+      virtual void setType(int type) throw (UnimplementedException);
+
+      // getType() Method
+      /**
+       * getType() -- Returns the spin control's type as an integer.\n
+       *\n
+       *Note, return value can be:\n
+       *      SPIN_CONTROL_TYPE_INT, SPIN_CONTROL_TYPE_FLOAT, SPIN_CONTROL_TYPE_TEXT, SPIN_CONTROL_TYPE_PAGE\n
+       *\n
+       * example:\n
+       * - value = self.spincontrol.getValue()\n
+       */
+      virtual int getType() throw (UnimplementedException);
+
+      // setValue() Method
+      /**
+       * setValue(value) -- Sets the spin control's value.\n
+       * \n
+       * value    : unicode string - value to set spin control to\n
+       * \n
+       * example:\n
+       * -self.spincontrol.setValue(u'Windows')\n
+       */
+      virtual void setValue(const String& value) throw (UnimplementedException);
+
+      // getValue() Method
+      /**
+       * getValue() -- Returns the spin control's current label as a unicode string.\n
+       *\n
+       * example:\n
+       * - value = self.spincontrol.getValue()\n
+       */
+      virtual String getValue() throw (UnimplementedException);
+
+      // addValues() method
+      /**
+       * addValues(values) -- Adds a list of strings to this spinner control.\n
+       * \n
+       * values : List - list of unicode strings to add.\n
+       * \n
+       *example:\n
+       * - self.spincontrol.addValues(items=[u'Windows', u'OSX', u'Linux'])\n
+       */
+      virtual void addValues(const std::vector<String>& values) throw (UnimplementedException);
+
+#ifndef SWIG
+      ControlSpinEx() : Control("ControlSpinEx") {}
+
+      SWIGHIDDENVIRTUAL bool canAcceptMessages(int actionId) { return true; }
+
+      std::string strFont;
+      std::string strText;
+      std::string strTextureFocus;
+      std::string strTextureNoFocus;
+      std::string strTextureUp;
+      std::string strTextureDown;
+      std::string strTextureUpFocus;
+      std::string strTextureDownFocus;
+      color_t textColor;
+      color_t disabledColor;
+      int textOffsetX;
+      int textOffsetY; 
+     uint32_t align;
+      int iAngle;
+      color_t shadowColor;
+      color_t focusedColor;
+      int iType;
+      int spinWidth;
+      int spinHeight;
+
+      SWIGHIDDENVIRTUAL CGUIControl* Create() throw (WindowException);
+#endif
+    };
+
   }
 }
-

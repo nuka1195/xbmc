@@ -365,6 +365,8 @@ namespace XBMCAddon
        *   -ControlGroup
        *   -ControlImage
        *   -ControlRadioButton
+       *   -ControlEdit
+       *   -ControlSpinEx
        *   -ControlProgress\n
        */
       SWIGHIDDENVIRTUAL void addControl(Control* pControl) throw (WindowException);

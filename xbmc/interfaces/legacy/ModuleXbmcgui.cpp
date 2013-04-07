@@ -24,6 +24,7 @@
 #include "guilib/GraphicContext.h"
 #include "guilib/GUIWindowManager.h"
 #include "utils/log.h"
+#include "guilib/GUISpinControl.h"
 
 #define NOTIFICATION_INFO     "info"
 #define NOTIFICATION_WARNING  "warning"
@@ -56,10 +57,12 @@ namespace XBMCAddon
       CSingleLock gl(g_graphicsContext);
       return g_windowManager.GetTopMostModalDialogID();
     }
-    
+
     const char* getNOTIFICATION_INFO()    { return NOTIFICATION_INFO; }
     const char* getNOTIFICATION_WARNING() { return NOTIFICATION_WARNING; }
     const char* getNOTIFICATION_ERROR()   { return NOTIFICATION_ERROR; }
+
+    int getSPIN_CONTROL_TYPE_INT() { return SPIN_CONTROL_TYPE_INT; }
 
   }
 }
