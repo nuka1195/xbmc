@@ -236,6 +236,50 @@ namespace XBMCAddon
        *   - dialog.notification('Movie Trailers', 'Finding Nemo download finished.', xbmcgui.NOTIFICATION_INFO, 5000)\n
        */
       void notification(const String& heading, const String& message, const String& icon = emptyString, int time = 0);
+
+      /**
+       * input(heading[, default, type, option, autoclose]) -- Show an Input dialog.
+       *
+       * heading        : string - dialog heading.
+       * default        : [opt] string - default value. (default=empty string)
+       * type           : [opt] integer - the type of keyboard dialog. (default=xbmcgui.INPUT_QWERTY)
+       * option         : [opt] integer - option for the dialog. (see Options below)
+       * autoclose      : [opt] integer - milliseconds to autoclose dialog. (default=do not autoclose)
+       *
+       * Types:
+       *   xbmcgui.INPUT_QWERTY           (standard keyboard)
+       *   xbmcgui.INPUT_NUMERIC          (format: #)
+       *   xbmcgui.INPUT_DATE             (format: DD/MM/YYYY)
+       *   xbmcgui.INPUT_TIME             (format: HH:MM)
+       *   xbmcgui.INPUT_IPADDRESS        (format: #.#.#.#)
+       *   xbmcgui.INPUT_PASSWORD         (return md5 hash of input)
+       *
+       * Options Password Dialog:
+       *   Input Types:
+       *     xbmcgui.PASSWORD_CHOOSE
+       *     xbmcgui.PASSWORD_NUMERIC
+       *     xbmcgui.PASSWORD_GAMEPAD
+       *     xbmcgui.PASSWORD_QWERTY (default)
+       *   
+       *   Options:
+       *     xbmcgui.PASSWORD_VERIFY (only verifies an existing md5 hashed password)
+       *
+       * Options Qwerty Dialog:
+       *   Options:
+       *     xbmcgui.QWERTY_HIDE_INPUT
+       *
+       * *Note, Returns the entered data as a string.
+       *        Returns an empty string if dialog was canceled.
+       *
+       * example:
+       *   - dialog = xbmcgui.Dialog()
+       *   - d = dialog.input('Enter date of birth', type=xbmcgui.INPUT_PASSWORD, option=xbmcgui.PASSWORD_NUMERIC)\n
+       */
+      String input(const String& heading,
+                   const String& defaultt = emptyString,
+                   int type = 0,
+                   int option = 0,
+                   int autoclose = 0) throw (WindowException);
     };
 
     /**

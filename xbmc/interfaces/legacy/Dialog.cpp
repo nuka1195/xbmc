@@ -11,6 +11,12 @@
 #include "settings/MediaSourceSettings.h"
 #include "dialogs/GUIDialogKaiToast.h"
 #include "ModuleXbmcgui.h"
+#include "Keyboard.h"
+#include "guilib/GUIKeyboardFactory.h"
+#include "dialogs/GUIDialogKeyboardGeneric.h"
+#include "profiles/dialogs/GUIDialogLockSettings.h"
+#include "dialogs/GUIDialogGamepad.h"
+#include "dialogs/GUIDialogContextMenu.h"
 
 #define ACTIVE_WINDOW g_windowManager.GetActiveWindow()
 
@@ -258,6 +264,106 @@ namespace XBMCAddon
         CGUIDialogKaiToast::QueueNotification(strIcon, heading, message, iTime);
     }
     
+    String Dialog::input(const String& heading, const String& defaultt, int type, int option, int autoclose) throw (WindowException)
+    {
+      DelayedCallGuard dcguard(languageHook);
+      CStdString value(defaultt);
+      SYSTEMTIME timedate;
+      GetLocalTime(&timedate);
+
+      if (type == getINPUT_QWERTY())
+      {
+        bool bHiddenInput = option & getQWERTY_HIDE_INPUT();
+        if (!CGUIKeyboardFactory::ShowAndGetInput(value, heading, true, bHiddenInput, autoclose))
+          return emptyString;
+      }
+      else if (type == getINPUT_NUMERIC())
+      {
+        if (!CGUIDialogNumeric::ShowAndGetNumber(value, heading, autoclose))
+          return emptyString;
+      }
+      else if (type == getINPUT_DATE())
+      {
+        if (!defaultt.empty() && defaultt.size() == 10)
+        {
+          CStdString sDefault = defaultt;
+          timedate.wDay = atoi(sDefault.Left(2));
+          timedate.wMonth = atoi(sDefault.Mid(3,4));
+          timedate.wYear = atoi(sDefault.Right(4));
+        }
+        if (CGUIDialogNumeric::ShowAndGetDate(timedate, heading))
+          value.Format("%2d/%2d/%4d", timedate.wDay, timedate.wMonth, timedate.wYear);
+        else
+          return emptyString;
+      }
+      else if (type == getINPUT_TIME())
+      {
+        if (!defaultt.empty() && defaultt.size() == 5)
+        {
+          CStdString sDefault = defaultt;
+          timedate.wHour = atoi(sDefault.Left(2));
+          timedate.wMinute = atoi(sDefault.Right(2));
+        }
+        if (CGUIDialogNumeric::ShowAndGetTime(timedate, heading))
+          value.Format("%2d:%02d", timedate.wHour, timedate.wMinute);
+        else
+          return emptyString;
+      }
+      else if (type == getINPUT_IPADDRESS())
+      {
+        if (!CGUIDialogNumeric::ShowAndGetIPAddress(value, heading))
+          return emptyString;
+      }
+      else if (type == getINPUT_PASSWORD())
+      {
+        if (option & getPASSWORD_CHOOSE())
+        {
+          option -= getPASSWORD_CHOOSE();
+
+          CContextButtons choices;
+          choices.Add(getPASSWORD_CHOOSE(), 1223);
+          choices.Add(getPASSWORD_NUMERIC(), 12337);
+          choices.Add(getPASSWORD_GAMEPAD(), 12338);
+          choices.Add(getPASSWORD_QWERTY(), 12339);
+
+          option += CGUIDialogContextMenu::ShowAndGetChoice(choices);
+        }
+        
+        bool bResult = false;
+        if (option & getPASSWORD_CHOOSE())
+        {
+          bResult = true;
+          value = emptyString;
+        }
+        else if (option & getPASSWORD_NUMERIC())
+        {
+          if (option & getPASSWORD_VERIFY())
+            bResult = CGUIDialogNumeric::ShowAndVerifyPassword(value, heading, 0) == 0 ? true : false;
+          else
+            bResult = CGUIDialogNumeric::ShowAndVerifyNewPassword(value);
+        }
+        else if (option & getPASSWORD_GAMEPAD())
+        {
+          if (option & getPASSWORD_VERIFY())
+            bResult = CGUIDialogGamepad::ShowAndVerifyPassword(value, heading, 0) == 0 ? true : false;
+          else
+            bResult = CGUIDialogGamepad::ShowAndVerifyNewPassword(value);
+        }
+        else
+        {
+          if (option & getPASSWORD_VERIFY())
+            bResult = CGUIKeyboardFactory::ShowAndVerifyPassword(value, heading, 0, autoclose) == 0 ? true : false;
+          else
+            bResult = CGUIKeyboardFactory::ShowAndVerifyNewPassword(value, heading, true, autoclose);
+        }
+
+        if (!bResult)
+          value = emptyString;
+
+      }
+      return value;
+    }
+
     DialogProgress::~DialogProgress() { TRACE; deallocating(); }
 
     void DialogProgress::deallocating()
