@@ -326,7 +326,11 @@ namespace XBMCAddon
           choices.Add(getPASSWORD_GAMEPAD(), 12338);
           choices.Add(getPASSWORD_QWERTY(), 12339);
 
-          option += CGUIDialogContextMenu::ShowAndGetChoice(choices);
+          int choice = CGUIDialogContextMenu::ShowAndGetChoice(choices);
+          if (choice == -1)
+            return emptyString;
+
+          option += choice;
         }
         
         bool bResult = false;
