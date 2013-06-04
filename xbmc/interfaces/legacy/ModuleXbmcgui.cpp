@@ -25,10 +25,6 @@
 #include "guilib/GUIWindowManager.h"
 #include "utils/log.h"
 
-#define NOTIFICATION_INFO     "info"
-#define NOTIFICATION_WARNING  "warning"
-#define NOTIFICATION_ERROR    "error"
-
 namespace XBMCAddon
 {
   namespace xbmcgui

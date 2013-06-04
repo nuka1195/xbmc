@@ -240,7 +240,7 @@ namespace XBMCAddon
     {
       DelayedCallGuard dcguard(languageHook);
 
-      CStdString strIcon = getNOTIFICATION_INFO();
+      CStdString strIcon = NOTIFICATION_INFO;
       int iTime = TOAST_DISPLAY_TIME;
 
       if (time > 0)
@@ -248,11 +248,11 @@ namespace XBMCAddon
       if (!icon.empty())
         strIcon = icon;
       
-      if (strIcon.Equals(getNOTIFICATION_INFO()))
+      if (strIcon.Equals(NOTIFICATION_INFO))
         CGUIDialogKaiToast::QueueNotification(CGUIDialogKaiToast::Info, heading, message, iTime);
-      else if (strIcon.Equals(getNOTIFICATION_WARNING()))
+      else if (strIcon.Equals(NOTIFICATION_WARNING))
         CGUIDialogKaiToast::QueueNotification(CGUIDialogKaiToast::Warning, heading, message, iTime);
-      else if (strIcon.Equals(getNOTIFICATION_ERROR()))
+      else if (strIcon.Equals(NOTIFICATION_ERROR))
         CGUIDialogKaiToast::QueueNotification(CGUIDialogKaiToast::Error, heading, message, iTime);
       else
         CGUIDialogKaiToast::QueueNotification(strIcon, heading, message, iTime);
